@@ -121,6 +121,23 @@ describe("I5–I7 section rows are not JSON dumps", () => {
     assert.equal(rows[0].join_date, "2020-11-17");
   });
 
+  it("person membership still shows group_name when member_name is also present", () => {
+    const rows = membershipRows({
+      official_name: "Karina",
+      type: "person",
+      memberships: [
+        {
+          group_name: "aespa",
+          member_name: "Karina",
+          role: "member"
+        }
+      ]
+    });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].target, "aespa");
+    assert.notEqual(rows[0].target, "Karina");
+  });
+
   it("renders external_accounts as platform/handle/url rows", () => {
     const rows = externalAccountRows(payload);
     assert.equal(rows.length, 1);
@@ -143,5 +160,63 @@ describe("I8 sources and collapsed raw JSON", () => {
     const text = prettyJson(payload);
     assert.match(text, /"official_name": "Karina"/);
     assert.match(text, /\n/);
+  });
+});
+
+const TWO_PM_MEMBERS = [
+  "Chansung",
+  "JUN. K",
+  "Junho",
+  "Nichkhun",
+  "Taecyeon",
+  "Wooyoung"
+];
+
+const twoPm = {
+  id: UUID,
+  official_name: "2PM",
+  type: "group",
+  memberships: TWO_PM_MEMBERS.map(member_name => ({
+    group_name: "2PM",
+    member_name,
+    role: "member"
+  }))
+};
+
+describe("J1–J3 group membership shows member names, not the group", () => {
+  it("J1 2PM membership rows use member_name, not group_name", () => {
+    const rows = membershipRows(twoPm);
+    assert.equal(rows.length, 6);
+    assert.deepEqual(
+      rows.map(row => row.target),
+      TWO_PM_MEMBERS
+    );
+  });
+
+  it("J2 each 2PM member display name is distinct and ≠ group name", () => {
+    const names = membershipRows(twoPm).map(row => row.target);
+    assert.equal(new Set(names).size, 6);
+    for (const name of names) {
+      assert.notEqual(name, "2PM");
+      assert.notEqual(name, twoPm.official_name);
+    }
+  });
+
+  it("J3 group view prefers member official name even when group_name is also present", () => {
+    const rows = membershipRows({
+      official_name: "2PM",
+      type: "group",
+      memberships: [
+        {
+          group_name: "2PM",
+          member_name: "Chansung",
+          group: { official_name: "2PM" },
+          member: { official_name: "Chansung" }
+        }
+      ]
+    });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].target, "Chansung");
+    assert.notEqual(rows[0].target, "2PM");
   });
 });

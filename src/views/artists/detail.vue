@@ -45,6 +45,11 @@ const idText = computed(() => artistId(artist.value) || id.value);
 const basicFields = computed(() => basicInfoFields(artist.value));
 const aliases = computed(() => aliasRows(artist.value));
 const memberships = computed(() => membershipRows(artist.value));
+const membershipNameLabel = computed(() => {
+  if (typeLabel.value === "团体") return "成员";
+  if (typeLabel.value === "个人") return "团体";
+  return "名称";
+});
 const accounts = computed(() => externalAccountRows(artist.value));
 const sources = computed(() => sourceRows(artist.value));
 
@@ -214,8 +219,18 @@ watch(id, load, { immediate: true });
       <template #header>
         <span>成员 / 团体关系</span>
       </template>
-      <el-table :data="memberships" border stripe empty-text="暂无">
-        <el-table-column prop="target" label="名称" min-width="160" />
+      <el-table
+        :data="memberships"
+        border
+        stripe
+        empty-text="暂无"
+        data-testid="membership-table"
+      >
+        <el-table-column
+          prop="target"
+          :label="membershipNameLabel"
+          min-width="160"
+        />
         <el-table-column prop="role" label="角色" min-width="100">
           <template #default="{ row }">{{ row.role || "—" }}</template>
         </el-table-column>
