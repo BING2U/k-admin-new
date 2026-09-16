@@ -5,11 +5,13 @@ import { ElMessage } from "element-plus";
 import { getArtists } from "@/api/kdata";
 import {
   artistCompany,
+  artistCompanyCode,
   artistId,
   artistName,
   formatCell,
   type JsonRecord
 } from "@/utils/envelope";
+import { aliasSummary } from "@/utils/artistDisplay";
 import ArtistInitials from "@/components/ArtistInitials.vue";
 
 defineOptions({
@@ -20,7 +22,7 @@ const router = useRouter();
 const loading = ref(false);
 const rows = ref<JsonRecord[]>([]);
 const total = ref(0);
-const companies = ref<string[]>([]);
+const companies = ref<{ value: string; label: string }[]>([]);
 const errorText = ref("");
 
 const query = reactive({
@@ -31,12 +33,18 @@ const query = reactive({
 });
 
 function collectCompanies(items: JsonRecord[]) {
-  const set = new Set(companies.value);
+  const map = new Map(
+    companies.value.map(item => [item.value, item.label] as const)
+  );
   for (const item of items) {
-    const company = artistCompany(item);
-    if (company) set.add(company);
+    const code = artistCompanyCode(item);
+    const label = artistCompany(item);
+    const value = code || label;
+    if (value) map.set(value, label || value);
   }
-  companies.value = [...set].sort();
+  companies.value = [...map.entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label));
 }
 
 async function load() {
@@ -120,9 +128,9 @@ onMounted(load);
         >
           <el-option
             v-for="item in companies"
-            :key="item"
-            :label="item"
-            :value="item"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
           />
         </el-select>
       </el-form-item>
@@ -174,7 +182,7 @@ onMounted(load);
       </el-table-column>
       <el-table-column label="别名" min-width="160" show-overflow-tooltip>
         <template #default="{ row }">
-          {{ formatCell(row.aliases ?? row.alias ?? row.nameAliases) }}
+          {{ aliasSummary(row) || "—" }}
         </template>
       </el-table-column>
       <el-table-column label="更新时间" min-width="170" show-overflow-tooltip>

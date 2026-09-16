@@ -12,6 +12,7 @@
     "report": "rimraf dist && vite build",
     "preview": "vite preview",
     "preview:build": "vite build && vite preview",
+    "test": "node --experimental-strip-types --test src/utils/*.test.ts",
     "typecheck": "tsc --noEmit && vue-tsc --noEmit --skipLibCheck",
     "svgo": "svgo -f . -r",
     "clean:cache": "rimraf .eslintcache && rimraf node_modules",
