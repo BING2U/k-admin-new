@@ -4,6 +4,14 @@ Vue 3 + TypeScript 管理台（基于 [vue-pure-admin 精简版](https://github.
 
 v0.1 页面：登录、数据源（只读）、艺人列表/搜索、艺人详情（改名/合并）、入库失败。
 
+OpenAPI **v0.2** 展示（艺人详情，空字段显示为 —，不编造）：
+
+- 出道日期 `debut_date`；有则显示 `debut_kind`、`nationality`
+- 团体显示 `member_count`
+- 成员关系保留 `member_name` 方向（团体看成员名）；有则显示 `is_leader`、`joined_at`、`left_at`、`role`
+- 专辑列表 `GET /v1/artists/{id}/albums`；展开读取 `GET /v1/albums/{id}/tracks`（曲名、曲序、时长）
+- 仍只用名称首字母，不展示人脸照片；Melon 不是本页依赖
+
 ## 准备
 
 - Node.js 20.19+ 或 22.13+
@@ -47,6 +55,9 @@ npm run dev
 - `GET /v1/sources`
 - `GET /v1/artists`（`q`、`company`、`page`、`pageSize`）
 - `GET /v1/artists/{id}`
+- `GET /v1/artists/{id}/albums`
+- `GET /v1/albums/{id}`
+- `GET /v1/albums/{id}/tracks`
 - `PATCH /v1/artists/{id}`（字段和/或 `mergeIntoId`）
 - `GET /v1/ingest/failures`
 

@@ -34,7 +34,9 @@ export interface ListResult<T> {
 }
 
 export function getSources() {
-  return client.get("/v1/sources").then(payload => unwrapList<JsonRecord>(payload));
+  return client
+    .get("/v1/sources")
+    .then(payload => unwrapList<JsonRecord>(payload));
 }
 
 export function getArtists(query: ListQuery = {}) {
@@ -56,6 +58,24 @@ export function getArtist(id: string | number) {
   return client
     .get(`/v1/artists/${encodeURIComponent(String(id))}`)
     .then(payload => unwrapItem<JsonRecord>(payload, String(id)));
+}
+
+export function getArtistAlbums(id: string | number) {
+  return client
+    .get(`/v1/artists/${encodeURIComponent(String(id))}/albums`)
+    .then(payload => unwrapList<JsonRecord>(payload));
+}
+
+export function getAlbum(id: string | number) {
+  return client
+    .get(`/v1/albums/${encodeURIComponent(String(id))}`)
+    .then(payload => unwrapItem<JsonRecord>(payload, String(id)));
+}
+
+export function getAlbumTracks(id: string | number) {
+  return client
+    .get(`/v1/albums/${encodeURIComponent(String(id))}/tracks`)
+    .then(payload => unwrapList<JsonRecord>(payload));
 }
 
 export interface PatchArtistBody extends JsonRecord {
