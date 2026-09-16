@@ -10,7 +10,7 @@ import {
   formatCell,
   type JsonRecord
 } from "@/utils/envelope";
-import OfficialAvatar from "@/components/OfficialAvatar.vue";
+import ArtistInitials from "@/components/ArtistInitials.vue";
 import { fetchedAt, officialAvatarUrl, sourceUrl } from "@/utils/provenance";
 
 defineOptions({
@@ -159,15 +159,11 @@ watch(id, load, { immediate: true });
       />
 
       <div class="flex items-center gap-3 mb-4">
-        <OfficialAvatar
-          :src="officialAvatarUrl(artist)"
-          :name="artistName(artist) || id"
-          :size="48"
-        />
+        <ArtistInitials :name="artistName(artist) || id" :size="48" />
         <div>
           <div class="text-lg font-medium">{{ artistName(artist) || id }}</div>
           <div class="text-xs text-[var(--el-text-color-secondary)]">
-            头像仅热链 API 返回的官方 avatar_url，不下载、不镜像、不走 CDN
+            列表/详情用名称首字母占位，不渲染人脸或 avatar_url 图片
           </div>
         </div>
       </div>

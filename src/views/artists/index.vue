@@ -10,8 +10,7 @@ import {
   formatCell,
   type JsonRecord
 } from "@/utils/envelope";
-import OfficialAvatar from "@/components/OfficialAvatar.vue";
-import { officialAvatarUrl } from "@/utils/provenance";
+import ArtistInitials from "@/components/ArtistInitials.vue";
 
 defineOptions({
   name: "ArtistList"
@@ -165,10 +164,7 @@ onMounted(load);
       <el-table-column label="名称" min-width="200" show-overflow-tooltip>
         <template #default="{ row }">
           <div class="flex items-center gap-2">
-            <OfficialAvatar
-              :src="officialAvatarUrl(row)"
-              :name="artistName(row)"
-            />
+            <ArtistInitials :name="artistName(row)" />
             <span>{{ artistName(row) || "—" }}</span>
           </div>
         </template>

@@ -14,7 +14,7 @@ export function officialHttpUrl(value: unknown): string {
   }
 }
 
-/** API `avatar_url` — hotlink only; do not download, mirror, or CDN-cache. */
+/** API `avatar_url` — provenance text only; do not download, mirror, or render as a face photo. */
 export function officialAvatarUrl(record: JsonRecord | null | undefined) {
   if (!record) return "";
   return officialHttpUrl(
