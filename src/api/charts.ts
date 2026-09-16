@@ -11,6 +11,7 @@ export type ChartsHttp = {
     config?: { params?: Record<string, unknown> }
   ) => Promise<unknown>;
   post: (url: string, data?: unknown) => Promise<unknown>;
+  patch: (url: string, data?: unknown) => Promise<unknown>;
 };
 
 export type SnapshotListQuery = SnapshotQuery;
@@ -22,10 +23,9 @@ export type FailureListQuery = {
   pageSize?: number;
 };
 
-export type ManualRunRequest = {
-  source: string;
-  period: string;
-  chartDate?: string;
+export type ChartJobPatch = {
+  enabled?: boolean;
+  rate_limit_seconds?: number;
 };
 
 export type OptionalListResult<T extends JsonRecord = JsonRecord> = {
@@ -54,7 +54,8 @@ client.interceptors.response.use(
 
 const defaultHttp: ChartsHttp = {
   get: (url, config) => client.get(url, config),
-  post: (url, data) => client.post(url, data)
+  post: (url, data) => client.post(url, data),
+  patch: (url, data) => client.patch(url, data)
 };
 
 function httpStatusOf(error: unknown) {
@@ -79,6 +80,10 @@ export function isUnavailableStatus(status: number) {
     status === 503 ||
     status === 0
   );
+}
+
+export function isDisabledJobConflict(error: unknown) {
+  return httpStatusOf(error) === 409;
 }
 
 function unavailableResult<T extends JsonRecord>(
@@ -149,6 +154,22 @@ export function createChartsService(http: ChartsHttp = defaultHttp) {
     listJobs() {
       return getOptionalList(http, "/v1/charts/jobs");
     },
+    async getJob(jobId: string) {
+      const payload = await http.get(
+        `/v1/charts/jobs/${encodeURIComponent(jobId)}`
+      );
+      return unwrapItem<JsonRecord>(payload, jobId);
+    },
+    runJob(jobId: string) {
+      return http.post(`/v1/charts/jobs/${encodeURIComponent(jobId)}/run`);
+    },
+    async patchJob(jobId: string, body: ChartJobPatch) {
+      const payload = await http.patch(
+        `/v1/charts/jobs/${encodeURIComponent(jobId)}`,
+        body
+      );
+      return unwrapItem<JsonRecord>(payload, jobId);
+    },
     listFailures(query: FailureListQuery = {}) {
       const params: Record<string, unknown> = {};
       if (query.source) params.source = query.source;
@@ -163,9 +184,6 @@ export function createChartsService(http: ChartsHttp = defaultHttp) {
         "/v1/charts/failures",
         Object.keys(params).length ? params : undefined
       );
-    },
-    runJob(body: ManualRunRequest) {
-      return http.post("/v1/charts/jobs/run", body);
     }
   };
 }

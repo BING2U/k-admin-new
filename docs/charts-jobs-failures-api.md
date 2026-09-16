@@ -1,4 +1,4 @@
-# Charts jobs and failures API (proposed)
+# Charts jobs API (finalized) and failures (proposed)
 
 k-data-new already exposes chart snapshots:
 
@@ -7,26 +7,54 @@ k-data-new already exposes chart snapshots:
 - `GET /v1/charts/{id}/entries`
 - `GET /v1/charts/{id}/matches`
 
-Admin Charts v0.1 also needs crawler/job status. Those endpoints are **not live yet**. This admin UI calls only same-origin `/v1/...` (proxied to k-data-new). It never talks to a crawler host directly. Until the backend implements the contract below, the jobs and failures tabs show an explicit unavailable state (HTTP 404/501/…) and **do not fabricate rows**.
+Admin calls **only** same-origin `/v1/...` (Vite / Docker proxy to k-data-new). It never talks to a crawler host. If jobs endpoints are not merged yet, the jobs tab shows an explicit unavailable warning and **does not fabricate rows**.
 
-Supported sources: `melon_song`, `hanteo_album`.  
+Supported sources (`source_code`): `melon_song`, `hanteo_album`.  
 Supported periods: `day`, `week`, `month`, `year`.
 
 ## Constraint: Melon day is latest-only
 
-`source=melon_song` + `period=day`:
+`source_code=melon_song` + `period=day` (`job_id=melon_song_day`):
 
 - Crawler may fetch **only the latest day**.
 - History backfill is not allowed.
-- Manual run **must not** accept a historical `chartDate`. Admin omits `chartDate` for this pair even if a date is present in the UI.
+- Manual run **must not** offer a historical date. `POST .../run` has no body.
 
-Other source/period pairs may send `chartDate` on a manual run.
+---
+
+## Job identity
+
+`job_id = {source_code}_{period}` — eight jobs:
+
+| job_id               | source_code  | period |
+| -------------------- | ------------ | ------ |
+| `melon_song_day`     | melon_song   | day    |
+| `melon_song_week`    | melon_song   | week   |
+| `melon_song_month`   | melon_song   | month  |
+| `melon_song_year`    | melon_song   | year   |
+| `hanteo_album_day`   | hanteo_album | day    |
+| `hanteo_album_week`  | hanteo_album | week   |
+| `hanteo_album_month` | hanteo_album | month  |
+| `hanteo_album_year`  | hanteo_album | year   |
+
+Job fields:
+
+| Field                | Notes                                              |
+| -------------------- | -------------------------------------------------- |
+| `enabled`            | boolean                                            |
+| `last_success_at`    | ISO timestamp or null                              |
+| `last_failure_at`    | ISO timestamp or null                              |
+| `last_error`         | string or null                                     |
+| `rate_limit_seconds` | integer; **0 = unlimited**                         |
+| `last_run_status`    | `never_run` \| `running` \| `success` \| `failure` |
+| `last_chart_date`    | `YYYY-MM-DD` or null                               |
+| `last_entry_count`   | integer or null                                    |
 
 ---
 
 ## `GET /v1/charts/jobs`
 
-List scheduled crawl/ingest jobs, one row per `source` + `period`.
+List all scheduled jobs.
 
 ```http
 GET /v1/charts/jobs
@@ -36,64 +64,63 @@ GET /v1/charts/jobs
 {
   "items": [
     {
-      "id": "melon_song:day",
-      "source": "melon_song",
+      "job_id": "melon_song_day",
+      "source_code": "melon_song",
       "period": "day",
       "enabled": true,
       "last_success_at": "2026-09-16T01:00:00Z",
       "last_failure_at": null,
       "last_error": null,
-      "rate_limit_status": "ok",
-      "rate_limit_remaining": 12,
-      "rate_limit_reset_at": null
+      "rate_limit_seconds": 0,
+      "last_run_status": "success",
+      "last_chart_date": "2026-09-15",
+      "last_entry_count": 100
     }
   ]
 }
 ```
 
-Alternate collection keys `jobs` / `data` are accepted. Field aliases (`lastSuccessAt`, `rateLimitStatus`, …) are accepted.
-
-`rate_limit_status` is a string such as `ok`, `limited`, or a crawler-specific token. Missing fields render as `—`.
-
-Suggested `id`: `{source}:{period}`.
+Alternate collection keys `jobs` / `data` are accepted.
 
 ---
 
-## `POST /v1/charts/jobs/run`
+## `GET /v1/charts/jobs/{job_id}`
 
-Run one job once. Body is JSON.
+Fetch one job, e.g. `GET /v1/charts/jobs/melon_song_day`.
+
+---
+
+## `POST /v1/charts/jobs/{job_id}/run`
+
+Run one job once. **No request body.** Disabled job → **409**.
 
 ```http
-POST /v1/charts/jobs/run
+POST /v1/charts/jobs/melon_song_day/run
+```
+
+Admin does not send `chartDate`. Melon day run is latest-day only.
+
+---
+
+## `PATCH /v1/charts/jobs/{job_id}`
+
+Update `enabled` and/or `rate_limit_seconds` (`0` = unlimited).
+
+```http
+PATCH /v1/charts/jobs/hanteo_album_week
 Content-Type: application/json
 ```
 
-Melon day (no date):
-
 ```json
 {
-  "source": "melon_song",
-  "period": "day"
+  "enabled": false,
+  "rate_limit_seconds": 45
 }
 ```
-
-Other jobs may include a historical date:
-
-```json
-{
-  "source": "hanteo_album",
-  "period": "week",
-  "chartDate": "2026-09-01"
-}
-```
-
-`202 Accepted` or `200` with a small acknowledgement object is enough. `404`/`501` is treated as unavailable (same as GET).
-
-Optional equivalent: `POST /v1/charts/jobs/{id}/run`. Admin v0.1 uses `/v1/charts/jobs/run` with `source` + `period`.
 
 ---
 
-## `GET /v1/charts/failures`
+## `GET /v1/charts/failures` (still proposed)
 
 Chart crawl/ingest failures. **No sample/mock rows on the client.**
 
@@ -117,8 +144,6 @@ GET /v1/charts/failures?source=melon_song&period=day&page=1&pageSize=20
 }
 ```
 
-Alternate collection key: `failures`. Query params `limit` may alias `pageSize`.
-
 ---
 
 ## Admin unavailable handling
@@ -129,8 +154,9 @@ For `GET /v1/charts/jobs` and `GET /v1/charts/failures`:
 | ----------------------- | -------------------------------------------------------- |
 | 200                     | Render returned rows only                                |
 | 404, 405, 501, 502, 503 | Warning: API unavailable, empty table, page stays usable |
-| Other errors            | Same non-breaking empty table + message                  |
+| Other list errors       | Same non-breaking empty table + message                  |
+| POST run **409**        | Job is disabled — error toast, not “API unavailable”     |
 
-Snapshot list/detail (`/v1/charts`, `/v1/charts/{id}`, `.../entries`, `.../matches`) are required for v0.1 and show a normal error state when they fail.
+Snapshot list/detail remain required for v0.1 and show a normal error state when they fail.
 
 Reserve path segments `jobs` and `failures` so they are not treated as snapshot ids.

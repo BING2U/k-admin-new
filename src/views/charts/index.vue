@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { chartsApi } from "@/api/charts";
+import { chartsApi, isDisabledJobConflict } from "@/api/charts";
 import { formatCell, type JsonRecord } from "@/utils/envelope";
 import {
   CHART_PERIODS,
   CHART_SOURCES,
   MELON_DAY_CONSTRAINT,
-  buildManualRunBody,
   failureRow,
   jobRow,
   listLoadState,
   mergeChartEntries,
   requestErrorMessage,
   snapshotRow,
+  sortJobRows,
   unavailableMessage,
   type EntryRow,
   type FailureRow,
@@ -49,8 +49,9 @@ const jobsLoading = ref(false);
 const jobsUnavailable = ref(false);
 const jobsMessage = ref("");
 const jobRows = ref<JobRow[]>([]);
-const runDates = reactive<Record<string, string>>({});
 const runningId = ref("");
+const patchingId = ref("");
+const rateDrafts = reactive<Record<string, number>>({});
 
 const failuresLoading = ref(false);
 const failuresUnavailable = ref(false);
@@ -174,7 +175,10 @@ async function loadJobs() {
       jobRows.value = [];
       return;
     }
-    jobRows.value = result.items.map(jobRow);
+    jobRows.value = sortJobRows(result.items.map(jobRow));
+    for (const row of jobRows.value) {
+      rateDrafts[row.id] = row.rateLimitSeconds;
+    }
   } catch (error: unknown) {
     jobsUnavailable.value = true;
     jobsMessage.value = requestErrorMessage(
@@ -188,23 +192,58 @@ async function loadJobs() {
 }
 
 async function runJob(row: JobRow) {
-  if (!row.source || !row.period) {
-    ElMessage.warning("缺少 source / period");
+  if (!row.id) {
+    ElMessage.warning("缺少 job_id");
     return;
   }
-  runningId.value = row.id || `${row.source}:${row.period}`;
+  if (!row.canRun) {
+    ElMessage.warning(row.enabled ? "任务正在运行" : "任务已禁用，无法执行");
+    return;
+  }
+  runningId.value = row.id;
   try {
-    const date = row.showDatePicker ? runDates[row.id] : undefined;
-    await chartsApi.runJob(buildManualRunBody(row.source, row.period, date));
-    ElMessage.success(`已提交 ${row.source} / ${row.period}`);
+    await chartsApi.runJob(row.id);
+    ElMessage.success(`已提交 ${row.id}`);
     await loadJobs();
   } catch (error: unknown) {
     ElMessage.error(
-      requestErrorMessage(error, "POST /v1/charts/jobs/run 失败")
+      isDisabledJobConflict(error)
+        ? `任务已禁用，无法执行（HTTP 409）：${row.id}`
+        : requestErrorMessage(error, `POST /v1/charts/jobs/${row.id}/run 失败`)
     );
   } finally {
     runningId.value = "";
   }
+}
+
+async function patchJob(
+  row: JobRow,
+  body: { enabled?: boolean; rate_limit_seconds?: number }
+) {
+  if (!row.id) {
+    ElMessage.warning("缺少 job_id");
+    return;
+  }
+  patchingId.value = row.id;
+  try {
+    await chartsApi.patchJob(row.id, body);
+    ElMessage.success(`已更新 ${row.id}`);
+    await loadJobs();
+  } catch (error: unknown) {
+    ElMessage.error(
+      requestErrorMessage(error, `PATCH /v1/charts/jobs/${row.id} 失败`)
+    );
+    await loadJobs();
+  } finally {
+    patchingId.value = "";
+  }
+}
+
+function runStatusType(status: string) {
+  if (status === "success") return "success";
+  if (status === "failure") return "danger";
+  if (status === "running") return "warning";
+  return "info";
 }
 
 async function loadFailures() {
@@ -269,8 +308,9 @@ onMounted(loadSnapshots);
       <div>
         <div class="text-base font-medium">榜单</div>
         <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
-          GET /v1/charts · 快照已接通；定时任务 / 失败列表走拟定 /v1/charts/jobs
-          与 /v1/charts/failures
+          GET /v1/charts · 快照已接通；定时任务走 GET/PATCH /v1/charts/jobs 与
+          POST /v1/charts/jobs/{job_id}/run；失败列表仍为拟定
+          /v1/charts/failures
         </div>
       </div>
     </template>
@@ -489,54 +529,90 @@ onMounted(loadSnapshots);
               : '暂无任务'
           "
         >
-          <el-table-column label="来源" min-width="130">
+          <el-table-column label="job_id" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.id || "—" }}</template>
+          </el-table-column>
+          <el-table-column label="source_code" min-width="120">
             <template #default="{ row }">{{ row.source || "—" }}</template>
           </el-table-column>
-          <el-table-column label="周期" width="80">
+          <el-table-column label="period" width="80">
             <template #default="{ row }">{{ row.period || "—" }}</template>
           </el-table-column>
-          <el-table-column label="启用" width="80">
-            <template #default="{ row }">{{ row.enabled }}</template>
+          <el-table-column label="enabled" width="90">
+            <template #default="{ row }">
+              <el-switch
+                :model-value="row.enabled"
+                :disabled="patchingId === row.id || jobsUnavailable"
+                @change="(value: boolean) => patchJob(row, { enabled: value })"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="last_run_status" width="120">
+            <template #default="{ row }">
+              <el-tag :type="runStatusType(row.lastRunStatus)" size="small">
+                {{ row.lastRunStatus }}
+              </el-tag>
+            </template>
           </el-table-column>
           <el-table-column
-            label="最近成功"
-            min-width="170"
+            label="last_success_at"
+            min-width="160"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.lastSuccess }}</template>
           </el-table-column>
           <el-table-column
-            label="最近失败"
-            min-width="170"
+            label="last_failure_at"
+            min-width="160"
             show-overflow-tooltip
           >
             <template #default="{ row }">{{ row.lastFailure }}</template>
           </el-table-column>
-          <el-table-column label="限流" min-width="120" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.rateLimitStatus }}</template>
+          <el-table-column
+            label="last_error"
+            min-width="160"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">{{ row.lastError }}</template>
           </el-table-column>
-          <el-table-column label="手动执行" min-width="280" fixed="right">
+          <el-table-column label="last_chart_date" width="130">
+            <template #default="{ row }">{{ row.lastChartDate }}</template>
+          </el-table-column>
+          <el-table-column label="last_entry_count" width="130">
+            <template #default="{ row }">{{ row.lastEntryCount }}</template>
+          </el-table-column>
+          <el-table-column label="rate_limit_seconds" width="170">
             <template #default="{ row }">
-              <div class="flex items-center gap-2">
-                <el-date-picker
-                  v-if="row.showDatePicker"
-                  v-model="runDates[row.id]"
-                  type="date"
-                  value-format="YYYY-MM-DD"
-                  placeholder="可选历史日期"
-                  style="width: 150px"
-                  clearable
-                />
-                <el-button
-                  size="small"
-                  type="primary"
-                  :loading="
-                    runningId === (row.id || `${row.source}:${row.period}`)
-                  "
-                  @click="runJob(row)"
-                  >{{ row.runLabel }}</el-button
-                >
+              <el-input-number
+                v-model="rateDrafts[row.id]"
+                :min="0"
+                :step="1"
+                size="small"
+                controls-position="right"
+                style="width: 110px"
+                :disabled="patchingId === row.id || jobsUnavailable"
+                @change="
+                  (value: number | undefined) =>
+                    patchJob(row, {
+                      rate_limit_seconds: Number(value ?? 0)
+                    })
+                "
+              />
+              <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+                {{ row.rateLimitLabel }}
               </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="手动执行" width="150" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                size="small"
+                type="primary"
+                :disabled="!row.canRun"
+                :loading="runningId === row.id"
+                @click="runJob(row)"
+                >{{ row.runLabel }}</el-button
+              >
             </template>
           </el-table-column>
         </el-table>

@@ -15,6 +15,30 @@ export const CHART_PERIODS = [
 export const MELON_DAY_CONSTRAINT =
   "Melon 日榜仅支持最新一日，不可回填历史；手动执行不会提供历史日期。";
 
+export function chartJobId(sourceCode: string, period: string) {
+  return `${sourceCode}_${period}`;
+}
+
+export const CHART_JOB_CATALOG = CHART_SOURCES.flatMap(source =>
+  CHART_PERIODS.map(period => ({
+    job_id: chartJobId(source.value, period.value),
+    source_code: source.value,
+    period: period.value
+  }))
+);
+
+export function parseChartJobId(jobId: string) {
+  for (const source of CHART_SOURCES) {
+    const prefix = `${source.value}_`;
+    if (!jobId.startsWith(prefix)) continue;
+    const period = jobId.slice(prefix.length);
+    if (CHART_PERIODS.some(item => item.value === period)) {
+      return { source_code: source.value as string, period };
+    }
+  }
+  return null;
+}
+
 export type SnapshotQuery = {
   source?: string;
   period?: string;
@@ -42,11 +66,7 @@ export type EntryRow = {
   candidateState: string;
 };
 
-export type ManualRunBody = {
-  source: string;
-  period: string;
-  chartDate?: string;
-};
+export type ManualRunBody = undefined;
 
 export type ManualRunControls = {
   allowHistoricalDate: boolean;
@@ -59,10 +79,16 @@ export type JobRow = {
   id: string;
   source: string;
   period: string;
-  enabled: string;
+  enabled: boolean;
+  canRun: boolean;
   lastSuccess: string;
   lastFailure: string;
-  rateLimitStatus: string;
+  lastError: string;
+  rateLimitSeconds: number;
+  rateLimitLabel: string;
+  lastRunStatus: string;
+  lastChartDate: string;
+  lastEntryCount: string;
   allowHistoricalDate: boolean;
   showDatePicker: boolean;
   runLabel: string;
@@ -107,7 +133,7 @@ export function manualRunControls(
   const allowHistoricalDate = allowsHistoricalChartDate(source, period);
   return {
     allowHistoricalDate,
-    showDatePicker: allowHistoricalDate,
+    showDatePicker: false,
     runLabel: isMelonDay(source, period) ? "执行一次（最新日）" : "执行一次",
     constraint: isMelonDay(source, period) ? MELON_DAY_CONSTRAINT : ""
   };
@@ -122,15 +148,15 @@ export function buildSnapshotQuery(filters: SnapshotQuery) {
 }
 
 export function buildManualRunBody(
-  source: string,
-  period: string,
-  chartDate?: string
+  _source?: string,
+  _period?: string,
+  _chartDate?: string
 ): ManualRunBody {
-  const body: ManualRunBody = { source, period };
-  if (chartDate && allowsHistoricalChartDate(source, period)) {
-    body.chartDate = chartDate;
-  }
-  return body;
+  return undefined;
+}
+
+export function formatRateLimitSeconds(seconds: number) {
+  return seconds === 0 ? "不限 (0)" : `${seconds}s`;
 }
 
 export function snapshotRow(record: JsonRecord): SnapshotRow {
@@ -249,41 +275,67 @@ export function mergeChartEntries(
   return entries.map(entry => chartEntryRow(entry, findMatch(entry, matches)));
 }
 
+function asBoolean(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes";
+  }
+  return false;
+}
+
+function asNumber(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export function jobRow(record: JsonRecord): JobRow {
-  const source = str(record, "source", "source_code", "sourceCode");
-  const period = str(record, "period");
+  const parsed = parseChartJobId(str(record, "job_id", "jobId", "id"));
+  const source =
+    str(record, "source_code", "sourceCode", "source") ||
+    parsed?.source_code ||
+    "";
+  const period = str(record, "period") || parsed?.period || "";
   const controls = manualRunControls(source, period);
+  const enabled = asBoolean(record.enabled);
+  const lastRunStatus =
+    str(record, "last_run_status", "lastRunStatus") || "never_run";
+  const rateLimitSeconds = asNumber(
+    record.rate_limit_seconds ?? record.rateLimitSeconds,
+    0
+  );
   return {
     id:
-      str(record, "id", "jobId", "job_id") ||
-      (source && period ? `${source}:${period}` : ""),
+      str(record, "job_id", "jobId", "id") ||
+      (source && period ? chartJobId(source, period) : ""),
     source,
     period,
-    enabled: formatCell(
-      record.enabled ?? record.is_enabled ?? record.isEnabled
-    ),
-    lastSuccess: formatCell(
-      record.last_success_at ??
-        record.lastSuccessAt ??
-        record.last_success ??
-        record.lastSuccess
-    ),
-    lastFailure: formatCell(
-      record.last_failure_at ??
-        record.lastFailureAt ??
-        record.last_failure ??
-        record.lastFailure
-    ),
-    rateLimitStatus: formatCell(
-      record.rate_limit_status ??
-        record.rateLimitStatus ??
-        record.rate_limit ??
-        record.rateLimit
+    enabled,
+    canRun: enabled && lastRunStatus !== "running",
+    lastSuccess: formatCell(record.last_success_at ?? record.lastSuccessAt),
+    lastFailure: formatCell(record.last_failure_at ?? record.lastFailureAt),
+    lastError: formatCell(record.last_error ?? record.lastError),
+    rateLimitSeconds,
+    rateLimitLabel: formatRateLimitSeconds(rateLimitSeconds),
+    lastRunStatus,
+    lastChartDate: formatCell(record.last_chart_date ?? record.lastChartDate),
+    lastEntryCount: formatCell(
+      record.last_entry_count ?? record.lastEntryCount
     ),
     allowHistoricalDate: controls.allowHistoricalDate,
-    showDatePicker: controls.showDatePicker,
+    showDatePicker: false,
     runLabel: controls.runLabel
   };
+}
+
+export function sortJobRows(rows: JobRow[]) {
+  const order = new Map(
+    CHART_JOB_CATALOG.map((item, index) => [item.job_id, index])
+  );
+  return [...rows].sort(
+    (a, b) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99)
+  );
 }
 
 export function failureRow(record: JsonRecord): FailureRow {

@@ -63,12 +63,14 @@ npm run dev
 - `GET /v1/charts/{id}`
 - `GET /v1/charts/{id}/entries`
 - `GET /v1/charts/{id}/matches`
-- `GET /v1/charts/jobs`（拟定，未上线时 UI 显示不可用、不编造行）
-- `POST /v1/charts/jobs/run`（拟定）
+- `GET /v1/charts/jobs`（未合并时 UI 显示不可用、不编造行）
+- `GET /v1/charts/jobs/{job_id}`（`job_id` = `{source_code}_{period}`）
+- `POST /v1/charts/jobs/{job_id}/run`（无 body；禁用任务返回 409）
+- `PATCH /v1/charts/jobs/{job_id}`（`enabled`、`rate_limit_seconds`，0=不限）
 - `GET /v1/charts/failures`（拟定）
 - `GET /v1/ingest/failures`
 
-拟定 jobs/failures 合同见 [`docs/charts-jobs-failures-api.md`](docs/charts-jobs-failures-api.md)。Melon 日榜仅最新一日、不可回填；手动执行不提供历史日期。
+Jobs 合同见 [`docs/charts-jobs-failures-api.md`](docs/charts-jobs-failures-api.md)。Melon 日榜仅最新一日、不可回填；手动执行不提供历史日期。
 
 ## 构建 / 预览
 

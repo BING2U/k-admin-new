@@ -1,18 +1,22 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  CHART_JOB_CATALOG,
   CHART_PERIODS,
   CHART_SOURCES,
   MELON_DAY_CONSTRAINT,
   allowsHistoricalChartDate,
   buildManualRunBody,
   buildSnapshotQuery,
+  chartJobId,
   failureRow,
+  formatRateLimitSeconds,
   isMelonDay,
   jobRow,
   listLoadState,
   manualRunControls,
   mergeChartEntries,
+  parseChartJobId,
   snapshotRow,
   unavailableMessage
 } from "./chartDisplay.ts";
@@ -181,37 +185,101 @@ describe("Melon day no-backfill / manual-run rule", () => {
     assert.match(controls.constraint, /Melon/);
     assert.match(MELON_DAY_CONSTRAINT, /不可回填/);
     const body = buildManualRunBody("melon_song", "day", "2026-01-01");
-    assert.equal("chartDate" in body, false);
-    assert.equal(body.source, "melon_song");
-    assert.equal(body.period, "day");
+    assert.equal(body, undefined);
   });
 
-  it("allows a historical date for non-Melon-day jobs", () => {
+  it("does not offer a historical date on POST /run for any job_id", () => {
+    assert.equal(
+      manualRunControls("hanteo_album", "week").showDatePicker,
+      false
+    );
+    assert.equal(
+      buildManualRunBody("hanteo_album", "week", "2026-01-01"),
+      undefined
+    );
     assert.equal(allowsHistoricalChartDate("hanteo_album", "week"), true);
-    const controls = manualRunControls("hanteo_album", "week");
-    assert.equal(controls.showDatePicker, true);
-    const body = buildManualRunBody("hanteo_album", "week", "2026-01-01");
-    assert.equal(body.chartDate, "2026-01-01");
+  });
+});
+
+describe("finalized chart job_id catalog", () => {
+  it("uses source_code_period ids for all 8 source × period jobs", () => {
+    assert.equal(chartJobId("melon_song", "day"), "melon_song_day");
+    assert.equal(chartJobId("hanteo_album", "year"), "hanteo_album_year");
+    assert.equal(CHART_JOB_CATALOG.length, 8);
+    assert.deepEqual(
+      CHART_JOB_CATALOG.map(item => item.job_id),
+      [
+        "melon_song_day",
+        "melon_song_week",
+        "melon_song_month",
+        "melon_song_year",
+        "hanteo_album_day",
+        "hanteo_album_week",
+        "hanteo_album_month",
+        "hanteo_album_year"
+      ]
+    );
+    assert.deepEqual(parseChartJobId("hanteo_album_week"), {
+      source_code: "hanteo_album",
+      period: "week"
+    });
   });
 });
 
 describe("jobs and failures rows plus load states", () => {
-  it("maps job source/period, enabled, last success/failure, rate-limit", () => {
+  it("maps finalized job fields including last_run_status and rate_limit_seconds", () => {
     const row = jobRow({
-      source: "melon_song",
+      job_id: "melon_song_day",
+      source_code: "melon_song",
       period: "day",
       enabled: true,
       last_success_at: "2026-09-16T01:00:00Z",
       last_failure_at: null,
-      rate_limit_status: "ok"
+      last_error: null,
+      rate_limit_seconds: 0,
+      last_run_status: "success",
+      last_chart_date: "2026-09-15",
+      last_entry_count: 100
     });
+    assert.equal(row.id, "melon_song_day");
     assert.equal(row.source, "melon_song");
     assert.equal(row.period, "day");
-    assert.equal(row.enabled, "true");
+    assert.equal(row.enabled, true);
+    assert.equal(row.canRun, true);
     assert.equal(row.lastSuccess, "2026-09-16T01:00:00Z");
     assert.equal(row.lastFailure, "—");
-    assert.equal(row.rateLimitStatus, "ok");
+    assert.equal(row.lastError, "—");
+    assert.equal(row.rateLimitSeconds, 0);
+    assert.equal(row.rateLimitLabel, formatRateLimitSeconds(0));
+    assert.match(row.rateLimitLabel, /不限|unlimited/i);
+    assert.equal(row.lastRunStatus, "success");
+    assert.equal(row.lastChartDate, "2026-09-15");
+    assert.equal(row.lastEntryCount, "100");
     assert.equal(row.showDatePicker, false);
+  });
+
+  it("blocks manual run when the job is disabled or already running", () => {
+    const disabled = jobRow({
+      job_id: "hanteo_album_week",
+      source_code: "hanteo_album",
+      period: "week",
+      enabled: false,
+      last_run_status: "never_run",
+      rate_limit_seconds: 30
+    });
+    assert.equal(disabled.enabled, false);
+    assert.equal(disabled.canRun, false);
+    assert.equal(disabled.rateLimitSeconds, 30);
+    assert.equal(disabled.lastRunStatus, "never_run");
+    const running = jobRow({
+      job_id: "hanteo_album_month",
+      source_code: "hanteo_album",
+      period: "month",
+      enabled: true,
+      last_run_status: "running",
+      rate_limit_seconds: 0
+    });
+    assert.equal(running.canRun, false);
   });
 
   it("maps failure source, period, chart_date, error, created_at", () => {
