@@ -10,7 +10,8 @@ import {
   formatCell,
   type JsonRecord
 } from "@/utils/envelope";
-import ArtistInitials from "@/components/ArtistInitials.vue";
+import OfficialAvatar from "@/components/OfficialAvatar.vue";
+import { fetchedAt, officialAvatarUrl, sourceUrl } from "@/utils/provenance";
 
 defineOptions({
   name: "ArtistDetail"
@@ -158,11 +159,15 @@ watch(id, load, { immediate: true });
       />
 
       <div class="flex items-center gap-3 mb-4">
-        <ArtistInitials :name="artistName(artist) || id" :size="48" />
+        <OfficialAvatar
+          :src="officialAvatarUrl(artist)"
+          :name="artistName(artist) || id"
+          :size="48"
+        />
         <div>
           <div class="text-lg font-medium">{{ artistName(artist) || id }}</div>
           <div class="text-xs text-[var(--el-text-color-secondary)]">
-            头像用名称首字母占位，不热链、不下载 avatar_url 图片
+            头像仅热链 API 返回的官方 avatar_url，不下载、不镜像、不走 CDN
           </div>
         </div>
       </div>
@@ -178,19 +183,33 @@ watch(id, load, { immediate: true });
           {{ artistCompany(artist) || "—" }}
         </el-descriptions-item>
         <el-descriptions-item label="avatar_url">
-          {{
-            formatCell(artist.avatar_url ?? artist.avatarUrl ?? artist.avatar)
-          }}
+          <a
+            v-if="officialAvatarUrl(artist)"
+            :href="officialAvatarUrl(artist)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-[var(--el-color-primary)]"
+          >
+            {{ officialAvatarUrl(artist) }}
+          </a>
+          <span v-else>—</span>
         </el-descriptions-item>
         <el-descriptions-item label="source_url">
-          {{
+          <a
+            v-if="sourceUrl(artist)"
+            :href="sourceUrl(artist)"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-[var(--el-color-primary)]"
+          >
+            {{ sourceUrl(artist) }}
+          </a>
+          <span v-else>{{
             formatCell(artist.source_url ?? artist.sourceUrl ?? artist.source)
-          }}
+          }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="fetched_at">
-          {{
-            formatCell(artist.fetched_at ?? artist.fetchedAt ?? artist.fetched)
-          }}
+          {{ fetchedAt(artist) || "—" }}
         </el-descriptions-item>
         <el-descriptions-item
           v-for="[key, value] in extraEntries"
