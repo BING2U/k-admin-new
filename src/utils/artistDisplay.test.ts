@@ -138,7 +138,6 @@ describe("I5–I7 section rows are not JSON dumps", () => {
     assert.notEqual(rows[0].target, "Karina");
   });
 
-
   it("renders external_accounts as platform/handle/url rows", () => {
     const rows = externalAccountRows(payload);
     assert.equal(rows.length, 1);

@@ -188,9 +188,7 @@ function membershipTargetName(row: JsonRecord, record: JsonRecord) {
   const currentName = artistName(record);
   const type = artistTypeLabel(record);
   const fallback =
-    humanStr(row, "official_name", "name", "target") ||
-    groupName ||
-    memberName;
+    humanStr(row, "official_name", "name", "target") || groupName || memberName;
 
   if (type === "团体") return memberName || fallback;
   if (type === "个人") return groupName || fallback;
