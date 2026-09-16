@@ -1,0 +1,15 @@
+services:
+  k-admin:
+    build: .
+    ports:
+      - "127.0.0.1:15173:15173"
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "15173"
+      K_DATA_API_BASE_URL: ${K_DATA_API_BASE_URL:-http://host.docker.internal:28080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
