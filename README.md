@@ -16,13 +16,13 @@ cp .env.example .env.local
 
 `.env.local` 已被 gitignore。不要提交真实密码或 `.env` 密钥。
 
-| 变量 | 默认 | 说明 |
-| --- | --- | --- |
-| `ADMIN_USERNAME` | `admin` | 唯一本地账号 |
-| `ADMIN_PASSWORD` | （必填） | 运行时 scrypt 哈希后校验，无 GitHub OAuth |
-| `K_DATA_API_BASE_URL` | `http://127.0.0.1:28080` | Vite / Docker 把同源 `/v1` 代理到该地址 |
-| `VITE_PORT` | `15173` | 管理台端口（避开 5173 / 8080 / 18080） |
-| `VITE_API_BASE_URL` | 空 | 可选。填写后浏览器直连 API（需 CORS）；留空则走同源代理 |
+| 变量                  | 默认                     | 说明                                                    |
+| --------------------- | ------------------------ | ------------------------------------------------------- |
+| `ADMIN_USERNAME`      | `admin`                  | 唯一本地账号                                            |
+| `ADMIN_PASSWORD`      | （必填）                 | 运行时 scrypt 哈希后校验，无 GitHub OAuth               |
+| `K_DATA_API_BASE_URL` | `http://127.0.0.1:28080` | Vite / Docker 把同源 `/v1` 代理到该地址                 |
+| `VITE_PORT`           | `15173`                  | 管理台端口（避开 5173 / 8080 / 18080）                  |
+| `VITE_API_BASE_URL`   | 空                       | 可选。填写后浏览器直连 API（需 CORS）；留空则走同源代理 |
 
 ## 本地开发
 
@@ -76,3 +76,9 @@ docker compose up --build
 ## 权限说明
 
 使用模板自带的登录/角色壳，只播种一个 `admin` 用户，没有另造 RBAC 矩阵。
+
+## 艺人头像与出处
+
+- 列表和详情用**艺人名称首字母**做圆形占位，不渲染人脸照片，也不用 `<img src="avatar_url">`。
+- 若 API 返回 `avatar_url`，仅在详情里作为出处文本展示；**不下载、不镜像、不走 CDN、不存图片二进制**，也没有上传/资源管线。
+- `source_url`、`fetched_at` 等文本字段原样展示；本仓库不包含抓取任务。

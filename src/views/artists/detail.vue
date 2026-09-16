@@ -10,6 +10,7 @@ import {
   formatCell,
   type JsonRecord
 } from "@/utils/envelope";
+import ArtistInitials from "@/components/ArtistInitials.vue";
 
 defineOptions({
   name: "ArtistDetail"
@@ -45,7 +46,14 @@ const extraEntries = computed(() => {
     "company_name",
     "agency",
     "agencyName",
-    "agency_name"
+    "agency_name",
+    "avatar_url",
+    "avatarUrl",
+    "avatar",
+    "source_url",
+    "sourceUrl",
+    "fetched_at",
+    "fetchedAt"
   ]);
   return Object.entries(artist.value).filter(([key]) => !skip.has(key));
 });
@@ -128,7 +136,7 @@ watch(id, load, { immediate: true });
 
 <template>
   <div class="flex flex-col gap-3">
-    <el-card shadow="never" v-loading="loading">
+    <el-card v-loading="loading" shadow="never">
       <template #header>
         <div class="flex items-center justify-between">
           <div>
@@ -149,6 +157,16 @@ watch(id, load, { immediate: true });
         class="mb-3"
       />
 
+      <div class="flex items-center gap-3 mb-4">
+        <ArtistInitials :name="artistName(artist) || id" :size="48" />
+        <div>
+          <div class="text-lg font-medium">{{ artistName(artist) || id }}</div>
+          <div class="text-xs text-[var(--el-text-color-secondary)]">
+            头像用名称首字母占位，不热链、不下载 avatar_url 图片
+          </div>
+        </div>
+      </div>
+
       <el-descriptions :column="2" border>
         <el-descriptions-item label="ID">
           {{ artistId(artist) || id }}
@@ -158,6 +176,21 @@ watch(id, load, { immediate: true });
         </el-descriptions-item>
         <el-descriptions-item label="公司">
           {{ artistCompany(artist) || "—" }}
+        </el-descriptions-item>
+        <el-descriptions-item label="avatar_url">
+          {{
+            formatCell(artist.avatar_url ?? artist.avatarUrl ?? artist.avatar)
+          }}
+        </el-descriptions-item>
+        <el-descriptions-item label="source_url">
+          {{
+            formatCell(artist.source_url ?? artist.sourceUrl ?? artist.source)
+          }}
+        </el-descriptions-item>
+        <el-descriptions-item label="fetched_at">
+          {{
+            formatCell(artist.fetched_at ?? artist.fetchedAt ?? artist.fetched)
+          }}
         </el-descriptions-item>
         <el-descriptions-item
           v-for="[key, value] in extraEntries"
@@ -173,7 +206,11 @@ watch(id, load, { immediate: true });
       <template #header>
         <span>改名 / 编辑</span>
       </template>
-      <el-form label-width="96px" style="max-width: 560px" @submit.prevent="save">
+      <el-form
+        label-width="96px"
+        style="max-width: 560px"
+        @submit.prevent="save"
+      >
         <el-form-item label="艺人名称">
           <el-input v-model="form.name" placeholder="name" />
         </el-form-item>
@@ -192,7 +229,11 @@ watch(id, load, { immediate: true });
       <template #header>
         <span>合并到其他艺人</span>
       </template>
-      <el-form label-width="96px" style="max-width: 560px" @submit.prevent="merge">
+      <el-form
+        label-width="96px"
+        style="max-width: 560px"
+        @submit.prevent="merge"
+      >
         <el-form-item label="目标 ID">
           <el-input
             v-model="mergeIntoId"

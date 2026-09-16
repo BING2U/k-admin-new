@@ -10,6 +10,7 @@ import {
   formatCell,
   type JsonRecord
 } from "@/utils/envelope";
+import ArtistInitials from "@/components/ArtistInitials.vue";
 
 defineOptions({
   name: "ArtistList"
@@ -92,7 +93,12 @@ onMounted(load);
       </div>
     </template>
 
-    <el-form :inline="true" :model="query" class="mb-3" @submit.prevent="search">
+    <el-form
+      :inline="true"
+      :model="query"
+      class="mb-3"
+      @submit.prevent="search"
+    >
       <el-form-item label="搜索">
         <el-input
           v-model="query.q"
@@ -121,7 +127,9 @@ onMounted(load);
         </el-select>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" :loading="loading" @click="search">查询</el-button>
+        <el-button type="primary" :loading="loading" @click="search"
+          >查询</el-button
+        >
         <el-button
           @click="
             query.q = '';
@@ -153,8 +161,13 @@ onMounted(load);
       <el-table-column label="ID" min-width="120" show-overflow-tooltip>
         <template #default="{ row }">{{ artistId(row) || "—" }}</template>
       </el-table-column>
-      <el-table-column label="名称" min-width="160" show-overflow-tooltip>
-        <template #default="{ row }">{{ artistName(row) || "—" }}</template>
+      <el-table-column label="名称" min-width="200" show-overflow-tooltip>
+        <template #default="{ row }">
+          <div class="flex items-center gap-2">
+            <ArtistInitials :name="artistName(row)" />
+            <span>{{ artistName(row) || "—" }}</span>
+          </div>
+        </template>
       </el-table-column>
       <el-table-column label="公司" min-width="140" show-overflow-tooltip>
         <template #default="{ row }">{{ artistCompany(row) || "—" }}</template>
@@ -175,7 +188,9 @@ onMounted(load);
       </el-table-column>
       <el-table-column label="操作" width="100" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+          <el-button link type="primary" @click="openDetail(row)"
+            >详情</el-button
+          >
         </template>
       </el-table-column>
     </el-table>
