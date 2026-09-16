@@ -603,7 +603,7 @@ onMounted(loadSnapshots);
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="手动执行" min-width="150" fixed="right">
+          <el-table-column label="手动执行" min-width="190" fixed="right">
             <template #default="{ row }">
               <el-button
                 size="small"
