@@ -143,6 +143,66 @@ export function aliasSummary(record: JsonRecord) {
     .join(" · ");
 }
 
+function namesEqual(a: string, b: string) {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+function membershipGroupName(row: JsonRecord) {
+  const group = asRecord(row.group) ?? asRecord(row.group_artist);
+  return (
+    humanStr(group, "official_name", "officialName", "name", "display_name") ||
+    humanStr(
+      row,
+      "group_name",
+      "groupName",
+      "group_official_name",
+      "groupOfficialName"
+    )
+  );
+}
+
+function membershipMemberName(row: JsonRecord) {
+  const member = asRecord(row.member) ?? asRecord(row.artist);
+  return (
+    humanStr(
+      member,
+      "official_name",
+      "officialName",
+      "name",
+      "display_name",
+      "displayName"
+    ) ||
+    humanStr(
+      row,
+      "member_name",
+      "memberName",
+      "member_official_name",
+      "memberOfficialName"
+    )
+  );
+}
+
+function membershipTargetName(row: JsonRecord, record: JsonRecord) {
+  const groupName = membershipGroupName(row);
+  const memberName = membershipMemberName(row);
+  const currentName = artistName(record);
+  const type = artistTypeLabel(record);
+  const fallback =
+    humanStr(row, "official_name", "name", "target") ||
+    groupName ||
+    memberName;
+
+  if (type === "团体") return memberName || fallback;
+  if (type === "个人") return groupName || fallback;
+  if (currentName && groupName && namesEqual(currentName, groupName)) {
+    return memberName || fallback;
+  }
+  if (currentName && memberName && namesEqual(currentName, memberName)) {
+    return groupName || fallback;
+  }
+  return groupName || memberName || fallback;
+}
+
 export function membershipRows(record: JsonRecord): MembershipRow[] {
   const list = asItemList(
     record.memberships ?? record.membership ?? record.groups ?? record.members
@@ -150,23 +210,8 @@ export function membershipRows(record: JsonRecord): MembershipRow[] {
   return list
     .map(item => {
       const row = itemRecord(item);
-      const group = asRecord(row.group) ?? asRecord(row.group_artist);
-      const member = asRecord(row.member) ?? asRecord(row.artist);
-      const target =
-        humanStr(group, "official_name", "officialName", "name") ||
-        humanStr(member, "official_name", "officialName", "name") ||
-        humanStr(
-          row,
-          "group_name",
-          "groupName",
-          "member_name",
-          "memberName",
-          "official_name",
-          "name",
-          "target"
-        );
       return {
-        target,
+        target: membershipTargetName(row, record),
         role: str(row, "role", "member_role", "memberRole"),
         position: str(row, "position", "positions"),
         join_date: str(row, "join_date", "joinDate", "start_date", "startDate"),
