@@ -547,7 +547,7 @@ onMounted(loadSnapshots);
               />
             </template>
           </el-table-column>
-          <el-table-column label="last_run_status" width="120">
+          <el-table-column label="last_run_status" min-width="140">
             <template #default="{ row }">
               <el-tag :type="runStatusType(row.lastRunStatus)" size="small">
                 {{ row.lastRunStatus }}
@@ -575,13 +575,13 @@ onMounted(loadSnapshots);
           >
             <template #default="{ row }">{{ row.lastError }}</template>
           </el-table-column>
-          <el-table-column label="last_chart_date" width="130">
+          <el-table-column label="last_chart_date" min-width="140">
             <template #default="{ row }">{{ row.lastChartDate }}</template>
           </el-table-column>
-          <el-table-column label="last_entry_count" width="130">
+          <el-table-column label="last_entry_count" min-width="150">
             <template #default="{ row }">{{ row.lastEntryCount }}</template>
           </el-table-column>
-          <el-table-column label="rate_limit_seconds" width="170">
+          <el-table-column label="rate_limit_seconds" min-width="180">
             <template #default="{ row }">
               <el-input-number
                 v-model="rateDrafts[row.id]"
@@ -603,7 +603,7 @@ onMounted(loadSnapshots);
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="手动执行" width="150" fixed="right">
+          <el-table-column label="手动执行" min-width="150" fixed="right">
             <template #default="{ row }">
               <el-button
                 size="small"
