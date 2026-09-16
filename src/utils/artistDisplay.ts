@@ -17,6 +17,20 @@ export type MembershipRow = {
   join_date: string;
   leave_date: string;
   status: string;
+  is_leader: string;
+};
+export type AlbumRow = {
+  id: string;
+  title: string;
+  release_date: string;
+  album_type: string;
+  track_count: string;
+};
+export type TrackRow = {
+  id: string;
+  title: string;
+  track_no: string;
+  duration: string;
 };
 export type ExternalAccountRow = {
   platform: string;
@@ -58,8 +72,53 @@ export function dash(value: unknown) {
   return text || "—";
 }
 
+export function isGroupArtist(record: JsonRecord) {
+  return artistTypeLabel(record) === "团体";
+}
+
+export function leaderLabel(value: unknown) {
+  if (value == null || value === "") return "";
+  if (typeof value === "boolean") return value ? "是" : "否";
+  const text = String(value).trim().toLowerCase();
+  if (["true", "1", "yes", "y"].includes(text)) return "是";
+  if (["false", "0", "no", "n"].includes(text)) return "否";
+  return String(value).trim();
+}
+
+function formatMmSs(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "";
+  const total = Math.round(seconds);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+export function durationText(row: JsonRecord) {
+  const ms = row.duration_ms ?? row.durationMs;
+  if (typeof ms === "number" && Number.isFinite(ms)) {
+    return formatMmSs(ms / 1000);
+  }
+  const labeled = str(
+    row,
+    "duration",
+    "length",
+    "duration_text",
+    "durationText"
+  );
+  if (labeled && !/^\d+(\.\d+)?$/.test(labeled)) return labeled;
+  if (labeled) {
+    const n = Number(labeled);
+    return formatMmSs(n >= 1000 ? n / 1000 : n);
+  }
+  const sec = row.duration_sec ?? row.durationSec;
+  if (typeof sec === "number" && Number.isFinite(sec)) {
+    return formatMmSs(sec);
+  }
+  return "";
+}
+
 export function basicInfoFields(record: JsonRecord): BasicField[] {
-  return [
+  const fields: BasicField[] = [
     { key: "status", label: "状态", value: dash(str(record, "status")) },
     {
       key: "birthday",
@@ -77,6 +136,25 @@ export function basicInfoFields(record: JsonRecord): BasicField[] {
       value: dash(str(record, "debut_date", "debutDate"))
     },
     {
+      key: "debut_kind",
+      label: "出道类型",
+      value: dash(str(record, "debut_kind", "debutKind"))
+    },
+    {
+      key: "nationality",
+      label: "国籍",
+      value: dash(str(record, "nationality"))
+    }
+  ];
+  if (isGroupArtist(record)) {
+    fields.push({
+      key: "member_count",
+      label: "成员数",
+      value: dash(str(record, "member_count", "memberCount"))
+    });
+  }
+  fields.push(
+    {
       key: "bio",
       label: "简介",
       value: dash(str(record, "bio", "biography", "intro"))
@@ -86,14 +164,15 @@ export function basicInfoFields(record: JsonRecord): BasicField[] {
       label: "更新时间",
       value: dash(str(record, "updated_at", "updatedAt", "modifiedAt", "mtime"))
     }
-  ];
+  );
+  return fields;
 }
 
 function asItemList(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   const rec = asRecord(value);
   if (!rec) return [];
-  for (const key of ["items", "list", "records", "rows"]) {
+  for (const key of ["items", "list", "records", "rows", "albums", "tracks"]) {
     if (Array.isArray(rec[key])) return rec[key] as unknown[];
   }
   const entries = Object.entries(rec);
@@ -212,9 +291,26 @@ export function membershipRows(record: JsonRecord): MembershipRow[] {
         target: membershipTargetName(row, record),
         role: str(row, "role", "member_role", "memberRole"),
         position: str(row, "position", "positions"),
-        join_date: str(row, "join_date", "joinDate", "start_date", "startDate"),
-        leave_date: str(row, "leave_date", "leaveDate", "end_date", "endDate"),
-        status: str(row, "status")
+        join_date: str(
+          row,
+          "joined_at",
+          "joinedAt",
+          "join_date",
+          "joinDate",
+          "start_date",
+          "startDate"
+        ),
+        leave_date: str(
+          row,
+          "left_at",
+          "leftAt",
+          "leave_date",
+          "leaveDate",
+          "end_date",
+          "endDate"
+        ),
+        status: str(row, "status"),
+        is_leader: leaderLabel(row.is_leader ?? row.isLeader)
       };
     })
     .filter(row => row.target || row.role);
@@ -275,6 +371,59 @@ export function sourceRows(record: JsonRecord): SourceRow[] {
     ];
   }
   return [];
+}
+
+export function albumRows(payload: unknown): AlbumRow[] {
+  return asItemList(payload)
+    .map(item => {
+      const row = itemRecord(item);
+      return {
+        id: str(row, "id", "album_id", "albumId"),
+        title:
+          humanStr(
+            row,
+            "title",
+            "name",
+            "official_name",
+            "album_title",
+            "albumTitle"
+          ) || str(row, "title", "name"),
+        release_date: str(
+          row,
+          "release_date",
+          "releaseDate",
+          "released_at",
+          "releasedAt"
+        ),
+        album_type: str(row, "album_type", "albumType", "type", "kind"),
+        track_count: str(row, "track_count", "trackCount")
+      };
+    })
+    .filter(row => row.id || row.title);
+}
+
+export function trackRows(payload: unknown): TrackRow[] {
+  return asItemList(payload)
+    .map(item => {
+      const row = itemRecord(item);
+      return {
+        id: str(row, "id", "track_id", "trackId"),
+        title:
+          humanStr(row, "title", "name", "track_title", "trackTitle") ||
+          str(row, "title", "name"),
+        track_no: str(
+          row,
+          "track_no",
+          "trackNo",
+          "track_number",
+          "trackNumber",
+          "no",
+          "number"
+        ),
+        duration: durationText(row)
+      };
+    })
+    .filter(row => row.id || row.title || row.track_no);
 }
 
 export function prettyJson(value: unknown) {

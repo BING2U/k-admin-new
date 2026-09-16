@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { artistCompany, artistName } from "./envelope.ts";
 import {
+  albumRows,
   aliasRows,
   artistTitle,
   artistTypeLabel,
@@ -10,7 +11,8 @@ import {
   externalAccountRows,
   membershipRows,
   prettyJson,
-  sourceRows
+  sourceRows,
+  trackRows
 } from "./artistDisplay.ts";
 
 const UUID = "3f1a9c2e-7b44-4d11-9c0a-0b6d5e8a1234";
@@ -218,5 +220,122 @@ describe("J1–J3 group membership shows member names, not the group", () => {
     assert.equal(rows.length, 1);
     assert.equal(rows[0].target, "Chansung");
     assert.notEqual(rows[0].target, "2PM");
+  });
+});
+
+describe("OpenAPI v0.2 artist fields", () => {
+  it("shows debut_date, debut_kind, and nationality without inventing missing values", () => {
+    const fields = basicInfoFields({
+      official_name: "2PM",
+      type: "group",
+      debut_date: "2008-09-04",
+      debut_kind: "group",
+      nationality: "KR"
+    });
+    const byKey = Object.fromEntries(
+      fields.map(item => [item.key, item.value])
+    );
+    assert.equal(byKey.debut_date, "2008-09-04");
+    assert.equal(byKey.debut_kind, "group");
+    assert.equal(byKey.nationality, "KR");
+    const empty = basicInfoFields({ official_name: "2PM", type: "group" });
+    const emptyByKey = Object.fromEntries(
+      empty.map(item => [item.key, item.value])
+    );
+    assert.equal(emptyByKey.debut_date, "—");
+    assert.equal(emptyByKey.debut_kind, "—");
+    assert.equal(emptyByKey.nationality, "—");
+  });
+
+  it("shows member_count for groups only", () => {
+    const group = basicInfoFields({
+      official_name: "2PM",
+      type: "group",
+      member_count: 6
+    });
+    assert.equal(group.find(item => item.key === "member_count")?.value, "6");
+    const person = basicInfoFields({
+      official_name: "Karina",
+      type: "person",
+      member_count: 6
+    });
+    assert.equal(
+      person.find(item => item.key === "member_count"),
+      undefined
+    );
+  });
+
+  it("keeps member_name and maps is_leader, joined_at, left_at, role", () => {
+    const rows = membershipRows({
+      official_name: "2PM",
+      type: "group",
+      memberships: [
+        {
+          group_name: "2PM",
+          member_name: "Nichkhun",
+          is_leader: false,
+          joined_at: "2008-09-04",
+          left_at: null,
+          role: "vocal",
+          position: "rapper"
+        },
+        {
+          group_name: "2PM",
+          member_name: "Junho",
+          is_leader: true,
+          joined_at: "2008-09-04",
+          left_at: "2017-01-01",
+          role: "main vocal"
+        }
+      ]
+    });
+    assert.equal(rows[0].target, "Nichkhun");
+    assert.notEqual(rows[0].target, "2PM");
+    assert.equal(rows[0].is_leader, "否");
+    assert.equal(rows[0].join_date, "2008-09-04");
+    assert.equal(rows[0].leave_date, "");
+    assert.equal(rows[0].role, "vocal");
+    assert.equal(rows[0].position, "rapper");
+    assert.equal(rows[1].target, "Junho");
+    assert.equal(rows[1].is_leader, "是");
+    assert.equal(rows[1].leave_date, "2017-01-01");
+    assert.equal(rows[1].role, "main vocal");
+  });
+});
+
+describe("OpenAPI v0.2 albums and tracks", () => {
+  it("maps album list items to title without inventing missing fields", () => {
+    const rows = albumRows([
+      {
+        id: "alb-1",
+        title: "Grown",
+        release_date: "2013-05-06",
+        album_type: "studio"
+      },
+      { id: "alb-2", name: "Hands Up" }
+    ]);
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0].id, "alb-1");
+    assert.equal(rows[0].title, "Grown");
+    assert.equal(rows[0].release_date, "2013-05-06");
+    assert.equal(rows[0].album_type, "studio");
+    assert.equal(rows[1].title, "Hands Up");
+    assert.equal(rows[1].release_date, "");
+    assert.equal(rows[1].album_type, "");
+  });
+
+  it("maps tracks with title, track_no, and duration only when present", () => {
+    const rows = trackRows([
+      { title: "A.D.T.O.Y.", track_no: 1, duration: "03:21" },
+      { title: "Comeback When You Hear This Song", track_no: 2 },
+      { title: "Go Crazy", track_no: 3, duration_ms: 201000 }
+    ]);
+    assert.equal(rows[0].title, "A.D.T.O.Y.");
+    assert.equal(rows[0].track_no, "1");
+    assert.equal(rows[0].duration, "03:21");
+    assert.equal(rows[1].title, "Comeback When You Hear This Song");
+    assert.equal(rows[1].track_no, "2");
+    assert.equal(rows[1].duration, "");
+    assert.equal(rows[2].duration, "3:21");
   });
 });

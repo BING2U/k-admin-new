@@ -22,6 +22,8 @@ function pickList(record: JsonRecord | null): unknown[] | null {
     "list",
     "records",
     "rows",
+    "albums",
+    "tracks",
     "sources",
     "artists",
     "failures",

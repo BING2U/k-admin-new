@@ -2,9 +2,16 @@
 import { computed, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { getArtist, patchArtist } from "@/api/kdata";
+import {
+  getAlbum,
+  getAlbumTracks,
+  getArtist,
+  getArtistAlbums,
+  patchArtist
+} from "@/api/kdata";
 import { artistId, artistName, type JsonRecord } from "@/utils/envelope";
 import {
+  albumRows,
   aliasRows,
   artistTitle,
   artistTypeLabel,
@@ -14,7 +21,10 @@ import {
   externalAccountRows,
   membershipRows,
   prettyJson,
-  sourceRows
+  sourceRows,
+  trackRows,
+  type AlbumRow,
+  type TrackRow
 } from "@/utils/artistDisplay";
 import ArtistInitials from "@/components/ArtistInitials.vue";
 
@@ -30,6 +40,12 @@ const merging = ref(false);
 const errorText = ref("");
 const artist = ref<JsonRecord>({});
 const rawJson = ref("");
+const albums = ref<AlbumRow[]>([]);
+const albumsError = ref("");
+const albumsLoading = ref(false);
+const tracksByAlbum = ref<Record<string, TrackRow[]>>({});
+const tracksLoading = ref<Record<string, boolean>>({});
+const tracksError = ref<Record<string, string>>({});
 
 const form = reactive({
   name: "",
@@ -53,6 +69,92 @@ const membershipNameLabel = computed(() => {
 const accounts = computed(() => externalAccountRows(artist.value));
 const sources = computed(() => sourceRows(artist.value));
 
+async function loadAlbums() {
+  albumsLoading.value = true;
+  albumsError.value = "";
+  albums.value = [];
+  tracksByAlbum.value = {};
+  tracksLoading.value = {};
+  tracksError.value = {};
+  try {
+    const result = await getArtistAlbums(id.value);
+    albums.value = albumRows(result.items);
+  } catch (error: any) {
+    albumsError.value = httpErrorMessage(
+      error,
+      `无法读取 GET /v1/artists/${id.value}/albums`
+    );
+  } finally {
+    albumsLoading.value = false;
+  }
+}
+
+function httpErrorMessage(error: any, fallback: string) {
+  return error?.response?.data?.message || error?.message || fallback;
+}
+
+async function loadAlbumTracks(row: AlbumRow) {
+  if (!row.id) {
+    tracksError.value = {
+      ...tracksError.value,
+      "": "缺少专辑 ID，无法读取曲目"
+    };
+    return;
+  }
+  if (Object.prototype.hasOwnProperty.call(tracksByAlbum.value, row.id)) {
+    return;
+  }
+  tracksLoading.value = { ...tracksLoading.value, [row.id]: true };
+  try {
+    const [detailRes, tracksRes] = await Promise.allSettled([
+      getAlbum(row.id),
+      getAlbumTracks(row.id)
+    ]);
+    if (detailRes.status === "fulfilled") {
+      const extra = albumRows([detailRes.value])[0];
+      if (extra) {
+        row.title = row.title || extra.title;
+        row.release_date = row.release_date || extra.release_date;
+        row.album_type = row.album_type || extra.album_type;
+        row.track_count = row.track_count || extra.track_count;
+      }
+    }
+    if (tracksRes.status === "rejected") {
+      throw tracksRes.reason;
+    }
+    tracksByAlbum.value = {
+      ...tracksByAlbum.value,
+      [row.id]: trackRows(tracksRes.value.items)
+    };
+    const nextErrors = { ...tracksError.value };
+    delete nextErrors[row.id];
+    tracksError.value = nextErrors;
+  } catch (error: any) {
+    tracksError.value = {
+      ...tracksError.value,
+      [row.id]: httpErrorMessage(
+        error,
+        `无法读取 GET /v1/albums/${row.id}/tracks`
+      )
+    };
+    tracksByAlbum.value = { ...tracksByAlbum.value, [row.id]: [] };
+  } finally {
+    tracksLoading.value = { ...tracksLoading.value, [row.id]: false };
+  }
+}
+
+function albumRowKey(row: AlbumRow) {
+  return row.id || `title:${row.title}`;
+}
+
+function onAlbumExpand(row: AlbumRow, expandedRows: AlbumRow[] | boolean) {
+  const expanded = Array.isArray(expandedRows)
+    ? expandedRows.some(item => albumRowKey(item) === albumRowKey(row))
+    : expandedRows;
+  if (!expanded) return;
+  void loadAlbumTracks(row);
+}
+
 async function load() {
   if (!id.value) return;
   loading.value = true;
@@ -63,14 +165,16 @@ async function load() {
     rawJson.value = prettyJson(data);
     form.name = artistName(data);
     form.company = companyFormValue(data);
+    void loadAlbums();
   } catch (error: any) {
-    errorText.value =
-      error?.response?.data?.message ||
-      error?.message ||
-      `无法读取 GET /v1/artists/${id.value}`;
+    errorText.value = httpErrorMessage(
+      error,
+      `无法读取 GET /v1/artists/${id.value}`
+    );
     ElMessage.error(errorText.value);
     artist.value = {};
     rawJson.value = "";
+    albums.value = [];
   } finally {
     loading.value = false;
   }
@@ -200,7 +304,11 @@ watch(id, load, { immediate: true });
           :label="field.label"
           :span="field.key === 'bio' ? 2 : 1"
         >
-          <span class="whitespace-pre-wrap">{{ field.value }}</span>
+          <span
+            class="whitespace-pre-wrap"
+            :data-testid="`basic-field-${field.key}`"
+            >{{ field.value }}</span
+          >
         </el-descriptions-item>
       </el-descriptions>
     </el-card>
@@ -231,6 +339,9 @@ watch(id, load, { immediate: true });
           :label="membershipNameLabel"
           min-width="160"
         />
+        <el-table-column prop="is_leader" label="队长" min-width="80">
+          <template #default="{ row }">{{ row.is_leader || "—" }}</template>
+        </el-table-column>
         <el-table-column prop="role" label="角色" min-width="100">
           <template #default="{ row }">{{ row.role || "—" }}</template>
         </el-table-column>
@@ -245,6 +356,85 @@ watch(id, load, { immediate: true });
         </el-table-column>
         <el-table-column prop="status" label="状态" min-width="100">
           <template #default="{ row }">{{ row.status || "—" }}</template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <el-card shadow="never" data-testid="albums-card">
+      <template #header>
+        <div>
+          <div>专辑</div>
+          <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+            GET /v1/artists/{{ id }}/albums · 展开读取曲目
+          </div>
+        </div>
+      </template>
+      <el-alert
+        v-if="albumsError"
+        :title="albumsError"
+        type="warning"
+        show-icon
+        class="mb-3"
+        data-testid="albums-error"
+      />
+      <el-table
+        v-loading="albumsLoading"
+        :data="albums"
+        border
+        stripe
+        empty-text="暂无"
+        data-testid="albums-table"
+        :row-key="albumRowKey"
+        @expand-change="onAlbumExpand"
+      >
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <div class="p-3">
+              <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">
+                GET /v1/albums/{{ row.id || "—" }}/tracks
+              </div>
+              <el-alert
+                v-if="tracksError[row.id]"
+                :title="tracksError[row.id]"
+                type="warning"
+                show-icon
+                class="mb-2"
+              />
+              <el-table
+                v-loading="tracksLoading[row.id]"
+                :data="tracksByAlbum[row.id] || []"
+                border
+                stripe
+                empty-text="暂无曲目"
+                data-testid="tracks-table"
+              >
+                <el-table-column prop="title" label="曲名" min-width="200">
+                  <template #default="{ row: track }">
+                    {{ track.title || "—" }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="track_no" label="曲序" min-width="80">
+                  <template #default="{ row: track }">
+                    {{ track.track_no || "—" }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="duration" label="时长" min-width="100">
+                  <template #default="{ row: track }">
+                    {{ track.duration || "—" }}
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="title" label="专辑" min-width="200">
+          <template #default="{ row }">{{ row.title || "—" }}</template>
+        </el-table-column>
+        <el-table-column prop="release_date" label="发行日期" min-width="120">
+          <template #default="{ row }">{{ row.release_date || "—" }}</template>
+        </el-table-column>
+        <el-table-column prop="album_type" label="类型" min-width="100">
+          <template #default="{ row }">{{ row.album_type || "—" }}</template>
         </el-table-column>
       </el-table>
     </el-card>
