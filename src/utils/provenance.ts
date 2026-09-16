@@ -1,4 +1,4 @@
-import { str, type JsonRecord } from "@/utils/envelope";
+import { str, type JsonRecord } from "./envelope.ts";
 
 /** Only http(s) official URLs. Never accept data:/blob: (those would be stored binaries). */
 export function officialHttpUrl(value: unknown): string {
