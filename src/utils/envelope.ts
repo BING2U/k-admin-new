@@ -26,7 +26,9 @@ function pickList(record: JsonRecord | null): unknown[] | null {
   return null;
 }
 
-export function unwrapList<T extends JsonRecord>(payload: unknown): {
+export function unwrapList<T extends JsonRecord>(
+  payload: unknown
+): {
   items: T[];
   total: number;
   raw: unknown;
@@ -60,7 +62,7 @@ export function unwrapItem<T extends JsonRecord>(
   if (data && typeof data === "object" && !Array.isArray(data)) {
     return data as T;
   }
-  return { id: fallbackId, value: data } as T;
+  return { id: fallbackId, value: data } as unknown as T;
 }
 
 export function str(record: JsonRecord | null | undefined, ...keys: string[]) {
