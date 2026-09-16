@@ -2,7 +2,7 @@
 
 Vue 3 + TypeScript 管理台（基于 [vue-pure-admin 精简版](https://github.com/pure-admin/pure-admin-thin)）。只通过 HTTP 调用 **k-data-new**，不直连数据库、不包含抓取逻辑。
 
-v0.1 页面：登录、数据源（只读）、艺人列表/搜索、艺人详情（改名/合并）、入库失败。
+v0.1 页面：登录、数据源（只读）、艺人列表/搜索、艺人详情（改名/合并）、榜单（快照/定时任务/失败）、入库失败。
 
 OpenAPI **v0.2** 展示（艺人详情，空字段显示为 —，不编造）：
 
@@ -59,7 +59,16 @@ npm run dev
 - `GET /v1/albums/{id}`
 - `GET /v1/albums/{id}/tracks`
 - `PATCH /v1/artists/{id}`（字段和/或 `mergeIntoId`）
+- `GET /v1/charts`（`source`、`period`、`chartDate`）
+- `GET /v1/charts/{id}`
+- `GET /v1/charts/{id}/entries`
+- `GET /v1/charts/{id}/matches`
+- `GET /v1/charts/jobs`（拟定，未上线时 UI 显示不可用、不编造行）
+- `POST /v1/charts/jobs/run`（拟定）
+- `GET /v1/charts/failures`（拟定）
 - `GET /v1/ingest/failures`
+
+拟定 jobs/failures 合同见 [`docs/charts-jobs-failures-api.md`](docs/charts-jobs-failures-api.md)。Melon 日榜仅最新一日、不可回填；手动执行不提供历史日期。
 
 ## 构建 / 预览
 

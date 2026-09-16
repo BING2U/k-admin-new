@@ -69,7 +69,12 @@ onMounted(load);
       </div>
     </template>
 
-    <el-form :inline="true" :model="query" class="mb-3" @submit.prevent="search">
+    <el-form
+      :inline="true"
+      :model="query"
+      class="mb-3"
+      @submit.prevent="search"
+    >
       <el-form-item label="搜索">
         <el-input
           v-model="query.q"
@@ -80,7 +85,9 @@ onMounted(load);
         />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" :loading="loading" @click="search">查询</el-button>
+        <el-button type="primary" :loading="loading" @click="search"
+          >查询</el-button
+        >
       </el-form-item>
     </el-form>
 
@@ -92,7 +99,13 @@ onMounted(load);
       class="mb-3"
     />
 
-    <el-table v-loading="loading" :data="rows" border stripe empty-text="暂无失败记录">
+    <el-table
+      v-loading="loading"
+      :data="rows"
+      border
+      stripe
+      empty-text="暂无失败记录"
+    >
       <el-table-column label="ID" min-width="120" show-overflow-tooltip>
         <template #default="{ row }">{{ failId(row) || "—" }}</template>
       </el-table-column>

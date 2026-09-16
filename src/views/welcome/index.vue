@@ -14,6 +14,11 @@ const cards = [
     path: "/artists/index"
   },
   {
+    title: "榜单",
+    desc: "快照、定时任务与抓取失败",
+    path: "/charts/index"
+  },
+  {
     title: "数据源配置",
     desc: "只读查看 k-data-new 源",
     path: "/sources/index"
@@ -33,7 +38,7 @@ const cards = [
       v0.1 管理台，仅通过 HTTP 调用 k-data-new（默认
       <code>http://127.0.0.1:28080</code>）。
     </p>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
       <el-card
         v-for="card in cards"
         :key="card.path"
