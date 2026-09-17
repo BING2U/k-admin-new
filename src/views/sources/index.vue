@@ -86,7 +86,13 @@ onMounted(load);
       show-icon
       class="mb-3"
     />
-    <el-table v-loading="loading" :data="rows" border stripe empty-text="暂无数据源">
+    <el-table
+      v-loading="loading"
+      :data="rows"
+      border
+      stripe
+      empty-text="暂无数据源"
+    >
       <el-table-column
         v-for="key in keys"
         :key="key"

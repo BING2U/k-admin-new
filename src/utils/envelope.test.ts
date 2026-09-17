@@ -35,3 +35,22 @@ describe("unwrapItem album detail", () => {
     assert.equal(album.title, "Grown");
   });
 });
+
+describe("unwrapList chart collections", () => {
+  it("unwraps charts, entries, matches, jobs, and failures arrays", () => {
+    assert.equal(unwrapList({ charts: [{ id: "c1" }] }).items[0].id, "c1");
+    assert.equal(unwrapList({ entries: [{ rank: 1 }] }).items[0].rank, 1);
+    assert.equal(
+      unwrapList({ matches: [{ status: "high" }] }).items[0].status,
+      "high"
+    );
+    assert.equal(
+      unwrapList({ jobs: [{ source: "melon_song" }] }).items[0].source,
+      "melon_song"
+    );
+    assert.equal(
+      unwrapList({ failures: [{ error: "timeout" }] }).items[0].error,
+      "timeout"
+    );
+  });
+});

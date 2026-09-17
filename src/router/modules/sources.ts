@@ -8,7 +8,7 @@ export default {
   meta: {
     icon: "ep/connection",
     title: "数据源",
-    rank: 2
+    rank: 3
   },
   children: [
     {

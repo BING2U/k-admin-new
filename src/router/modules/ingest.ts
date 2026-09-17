@@ -8,7 +8,7 @@ export default {
   meta: {
     icon: "ep/warning-filled",
     title: "入库失败",
-    rank: 3
+    rank: 4
   },
   children: [
     {
