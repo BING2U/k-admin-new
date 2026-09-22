@@ -99,6 +99,10 @@ docker compose up --build
 
 使用模板自带的登录/角色壳，只播种一个 `admin` 用户，没有另造 RBAC 矩阵。
 
+## PR 审核
+
+本仓与 `k-data-new` 使用同一套交叉审核与合并规则，见 [`docs/pr-review.md`](docs/pr-review.md)。
+
 ## 艺人头像与出处（必须遵守）
 
 - 列表和详情默认用**艺人名称首字母**做圆形占位，**不**用 `<img>` 展示人脸或 `avatar_url` 照片。
